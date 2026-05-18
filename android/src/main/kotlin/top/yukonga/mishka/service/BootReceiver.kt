@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import top.yukonga.mishka.platform.PlatformStorage
+import top.yukonga.mishka.platform.ProxyServiceController
 import top.yukonga.mishka.platform.StorageKeys
 
 /**
@@ -22,15 +23,7 @@ class BootReceiver : BroadcastReceiver() {
                 val storage = PlatformStorage(context)
                 val wasRunning = storage.getString(StorageKeys.SERVICE_WAS_RUNNING, "false") == "true"
                 if (wasRunning) {
-                    val subscriptionId = storage.getString(StorageKeys.ACTIVE_PROFILE_UUID, "")
-                        .ifEmpty { null }
-                    val mode = storage.getString(StorageKeys.TUN_MODE, "vpn")
-                    val isRoot = mode == "root_tun" || mode == "root_tproxy"
-                    if (isRoot) {
-                        MishkaRootService.start(context, subscriptionId)
-                    } else {
-                        MishkaTunService.start(context, subscriptionId)
-                    }
+                    ProxyServiceController(context).start()
                 }
             }
         }

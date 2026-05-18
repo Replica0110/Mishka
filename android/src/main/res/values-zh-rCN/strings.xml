@@ -38,6 +38,7 @@
     <string name="error_vpn_failed">VPN 建立失败: %1$s</string>
     <string name="error_vpn_denied">VPN 权限被拒绝</string>
     <string name="error_start_failed">启动失败</string>
+    <string name="error_no_active_subscription">未选择可用订阅</string>
     <string name="error_root_failed">无法获取 Root 权限</string>
     <string name="error_mihomo_not_found">mihomo 二进制文件未找到</string>
     <string name="error_fork_failed">fork+exec 失败</string>

@@ -38,6 +38,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".service.VpnPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/Theme.Mishka.Transparent" />
+
         <service
             android:name=".service.MishkaTunService"
             android:exported="false"

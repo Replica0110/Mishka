@@ -1,5 +1,8 @@
 package top.yukonga.mishka.service
 
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import kotlinx.coroutines.CoroutineScope
@@ -7,11 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.mishka.R
-import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProxyServiceBridge
+import top.yukonga.mishka.platform.ProxyServiceController
 import top.yukonga.mishka.platform.ProxyState
-import top.yukonga.mishka.platform.StorageKeys
-import top.yukonga.mishka.platform.TunMode
 
 class MishkaTileService : TileService() {
 
@@ -50,20 +51,34 @@ class MishkaTileService : TileService() {
         // 启动中时忽略点击，防止重复操作
         if (currentState.state == ProxyState.Starting) return
 
+        val serviceController = ProxyServiceController(applicationContext)
         if (currentState.state == ProxyState.Running) {
-            // 停止时根据当前运行模式路由
-            when (currentState.tunMode) {
-                TunMode.RootTun, TunMode.RootTproxy -> MishkaRootService.stop(applicationContext)
-                TunMode.Vpn -> MishkaTunService.stop(applicationContext)
-            }
+            serviceController.stop()
         } else {
-            val mode = PlatformStorage(applicationContext).getString(StorageKeys.TUN_MODE, "vpn")
-            val isRoot = mode == "root_tun" || mode == "root_tproxy"
-            if (isRoot) {
-                MishkaRootService.start(applicationContext)
-            } else {
-                MishkaTunService.start(applicationContext)
+            if (!serviceController.hasVpnPermission()) {
+                val subscriptionId = serviceController.resolveStartSubscriptionId() ?: return
+                requestVpnPermission(subscriptionId)
+                return
             }
+            serviceController.start()
+        }
+    }
+
+    private fun requestVpnPermission(subscriptionId: String) {
+        val intent = Intent(this, VpnPermissionActivity::class.java).apply {
+            putExtra(VpnPermissionActivity.EXTRA_SUBSCRIPTION_ID, subscriptionId)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            startActivityAndCollapse(pendingIntent)
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 
 actual class ProxyServiceController(private val context: Context) {
 
@@ -13,17 +14,19 @@ actual class ProxyServiceController(private val context: Context) {
     actual val status: StateFlow<ProxyServiceStatus> = ProxyServiceBridge.state
 
     actual fun start(subscriptionId: String?) {
+        val effectiveSubscriptionId = resolveStartSubscriptionId(subscriptionId) ?: return
         val mode = getTunMode()
         val intent = buildServiceIntent(mode, "START")
-        subscriptionId?.let { intent.putExtra("subscription_id", it) }
+        intent.putExtra("subscription_id", effectiveSubscriptionId)
         context.startForegroundService(intent)
     }
 
     actual fun restart(subscriptionId: String?) {
+        val effectiveSubscriptionId = resolveStartSubscriptionId(subscriptionId) ?: return
         // 优先读 bridge：代理运行中时它反映实际 Service；否则读 storage（用户最新选择）
         val mode = activeModeOrStored()
         val intent = buildServiceIntent(mode, "RESTART")
-        subscriptionId?.let { intent.putExtra("subscription_id", it) }
+        intent.putExtra("subscription_id", effectiveSubscriptionId)
         context.startService(intent)
     }
 
@@ -45,6 +48,34 @@ actual class ProxyServiceController(private val context: Context) {
         } else {
             getTunMode()
         }
+    }
+
+    fun resolveStartSubscriptionId(subscriptionId: String? = null): String? {
+        val effectiveSubscriptionId = subscriptionId ?: storage.getString(StorageKeys.ACTIVE_PROFILE_UUID, "").ifEmpty { null }
+        val hasConfig = effectiveSubscriptionId?.let { id ->
+            File(context.filesDir, "mihomo/imported/$id/config.yaml").isFile
+        } == true
+        if (!hasConfig) {
+            val mode = activeModeOrStored()
+            val wasRunning = ProxyServiceBridge.state.value.state == ProxyState.Running
+            ProxyServiceBridge.updateState(
+                ProxyServiceStatus(
+                    state = ProxyState.Error,
+                    errorMessage = appString("error_no_active_subscription"),
+                    tunMode = mode,
+                )
+            )
+            if (wasRunning) {
+                context.startService(buildServiceIntent(mode, "STOP"))
+            }
+            return null
+        }
+        return effectiveSubscriptionId
+    }
+
+    private fun appString(name: String): String {
+        val id = context.resources.getIdentifier(name, "string", context.packageName)
+        return if (id != 0) context.getString(id) else name
     }
 
     /**
